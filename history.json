@@ -1,0 +1,101 @@
+[
+    {
+        "date": "2025-04-08 23:50",
+        "stocks_invested_eur": 2685.4565,
+        "stocks_value_eur": 2222.59446,
+        "stocks_gain_eur": -462.86,
+        "crypto_invested_eur": 0.0,
+        "crypto_value_eur": 2050.522472918435,
+        "crypto_gain_eur": 2050.52,
+        "total_invested_eur": 2685.4565,
+        "total_value_eur": 4273.116932918435,
+        "total_gain_eur": 1587.66
+    },
+    {
+        "date": "2025-04-09 17:35",
+        "stocks_invested_eur": 2685.4565,
+        "stocks_value_eur": 2167.1283479999997,
+        "stocks_gain_eur": -518.33,
+        "crypto_invested_eur": 0.0,
+        "crypto_value_eur": 2064.5658357952893,
+        "crypto_gain_eur": 2064.57,
+        "total_invested_eur": 2685.4565,
+        "total_value_eur": 4231.694183795289,
+        "total_gain_eur": 1546.24
+    },
+    {
+        "date": "2025-04-09 20:50",
+        "stocks_invested_eur": 2685.4565,
+        "stocks_value_eur": 2206.0803,
+        "stocks_gain_eur": -479.38,
+        "crypto_invested_eur": 0.0,
+        "crypto_value_eur": 2204.8862580198484,
+        "crypto_gain_eur": 2204.89,
+        "total_invested_eur": 2685.4565,
+        "total_value_eur": 4410.966558019849,
+        "total_gain_eur": 1725.51
+    },
+    {
+        "date": "2025-04-11 11:53",
+        "stocks_invested_eur": 2685.4565,
+        "stocks_value_eur": 2251.755252,
+        "stocks_gain_eur": -433.7,
+        "crypto_invested_eur": 0.0,
+        "crypto_value_eur": 2186.19445150344,
+        "crypto_gain_eur": 2186.19,
+        "total_invested_eur": 2685.4565,
+        "total_value_eur": 4437.94970350344,
+        "total_gain_eur": 1752.49
+    },
+    {
+        "date": "2025-04-12 18:37",
+        "stocks_invested_eur": 2573.1165409241057,
+        "stocks_value_eur": 2191.073198482933,
+        "stocks_gain_eur": -382.04,
+        "crypto_invested_eur": 0.0,
+        "crypto_value_eur": 2195.4818208383736,
+        "crypto_gain_eur": 2195.48,
+        "total_invested_eur": 2573.1165409241057,
+        "total_value_eur": 4386.555019321307,
+        "total_gain_eur": 1813.44
+    },
+    {
+        "date": "2025-04-14 19:35",
+        "stocks_invested_eur": 2573.366462524625,
+        "stocks_value_eur": 2239.8231788998783,
+        "stocks_gain_eur": -333.54,
+        "crypto_invested_eur": 0.0,
+        "crypto_value_eur": 1502.5205717439453,
+        "crypto_gain_eur": 1502.52,
+        "cash_value_eur": 670.0,
+        "total_invested_eur": 2573.366462524625,
+        "total_value_eur": 4412.343750643824,
+        "total_gain_eur": 1168.92
+    },
+    {
+        "date": "2025-04-15 17:52",
+        "stocks_invested_eur": 2555.1972727642774,
+        "stocks_value_eur": 2231.33639496072,
+        "stocks_gain_eur": -323.86,
+        "crypto_invested_eur": 0.0,
+        "crypto_value_eur": 1502.1024377959825,
+        "crypto_gain_eur": 1502.1,
+        "cash_value_eur": 5470.0,
+        "total_invested_eur": 2555.1972727642774,
+        "total_value_eur": 9203.438832756703,
+        "total_gain_eur": 1178.24
+    },
+    {
+        "date": "2025-04-16 18:05",
+        "stocks_invested_eur": 2576.411121461471,
+        "stocks_value_eur": 2215.6267070330696,
+        "stocks_gain_eur": -360.78,
+        "crypto_invested_eur": 0.0,
+        "crypto_value_eur": 1493.5177649575346,
+        "crypto_gain_eur": 1493.52,
+        "cash_value_eur": 5470.0,
+        "total_invested_eur": 2576.411121461471,
+        "total_value_eur": 9179.144471990603,
+        "total_gain_eur": 1132.73
+    }
+]
