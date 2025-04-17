@@ -474,7 +474,19 @@ with tabs[1]:
         st.dataframe(df_display)
     else:
         st.info("No history snapshots yet.")
-    
+    import json
+
+# ... inside your `with tabs[1]:` block, after you load `history` ...
+history = load_history()
+st.dataframe(df_display)  # whatever you already have
+
+# Add this to let you download the raw JSON:
+st.download_button(
+    label="Download history.json",
+    data=json.dumps(history, indent=4),
+    file_name="history.json",
+    mime="application/json"
+)
     # --- Manage History Section (Deletion Only) ---
     with st.expander("Manage History"):
         st.write("Delete snapshots:")
