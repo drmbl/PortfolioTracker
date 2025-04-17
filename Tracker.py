@@ -101,7 +101,6 @@ st.title("Portfolio Tracker")
 st.sidebar.header("Add a New Asset")
 with st.sidebar.form("asset_form"):
     asset_type = st.selectbox("Asset Type", ["Stock/ETF", "Crypto"])
-    
     if asset_type == "Crypto":
         top_crypto_list = [
             "BTC-USD", "ETH-USD", "XRP-USD", "BNB-USD", "SOL-USD",
@@ -114,12 +113,10 @@ with st.sidebar.form("asset_form"):
     else:
         ticker_input = st.text_input("Ticker (e.g., AAPL, BATS, JNJ, JNJ.DE)")
         market = st.selectbox("Market/Exchange", ["US", "LSE", "EU"])
-    
     currency = st.selectbox("Asset Currency", ["USD", "GBP", "EUR"])
     buy_price = st.number_input("Buy Price (optional)", min_value=0.0, step=0.01, format="%.2f", value=0.0)
     quantity = st.number_input("Quantity", min_value=0.0, step=0.01, format="%.2f")
     submit = st.form_submit_button("Add Asset")
-    
     if submit:
         if ticker_input.strip() == "" or quantity <= 0:
             st.sidebar.error("Please enter a valid ticker and a quantity > 0.")
@@ -181,137 +178,227 @@ tabs = st.tabs(["Portfolio", "History"])
 # -----------------------------
 with tabs[0]:
     st.header("Portfolio Overview")
-    
+
     # --- Stocks/ETFs Section ---
     st.subheader("Stocks/ETFs")
     stock_data = []
-    total_stock_value_eur = 0
-    total_stock_gain_eur = 0
+    total_stock_invested_eur = 0.0
+    total_stock_value_eur    = 0.0
+    total_stock_gain_eur     = 0.0
+
+    # for 24h change calculation
+    prev_stock_value_eur     = 0.0
+
     for asset in portfolio:
         if asset.get("asset_type") == "Stock/ETF":
             asset_currency = asset.get("currency", "USD")
-            quantity = asset.get("quantity", 0)
-            buy_price = asset.get("buy_price", 0)
-            ticker = get_final_ticker(asset.get("ticker"), "Stock/ETF", asset.get("market"))
+            quantity       = asset.get("quantity", 0)
+            buy_price      = asset.get("buy_price", 0)
+            ticker         = get_final_ticker(asset.get("ticker", ""), "Stock/ETF", asset.get("market"))
             try:
                 stock = yf.Ticker(ticker)
-                hist = stock.history(period="1d")
-                if hist.empty:
+                hist  = stock.history(period="2d")
+                if hist.shape[0] < 2:
                     continue
-                info = stock.info
-                current_price = info.get("regularMarketPrice") or hist["Close"].iloc[-1]
-                conv_rate = get_conversion_factor(asset_currency, current_rates)
-                price_eur = current_price * conv_rate
-                buy_price_eur = buy_price * conv_rate
-                value = current_price * quantity
-                value_eur = price_eur * quantity
-                invested_eur = buy_price_eur * quantity
-                gain_eur = value_eur - invested_eur
-                
+                close_prices      = hist["Close"].values
+                prev_close        = close_prices[-2]
+                current_price     = close_prices[-1]
+                info              = stock.info
+                # fallback to info price if needed
+                if not current_price or current_price == 0:
+                    current_price = info.get("regularMarketPrice") or current_price
+                conv_rate         = get_conversion_factor(asset_currency, current_rates)
+                invested_eur      = buy_price * conv_rate * quantity
+                today_value_eur   = current_price * conv_rate * quantity
+                yesterday_value_eur = prev_close * conv_rate * quantity
+                gain_eur          = today_value_eur - invested_eur
+
                 raw_sector = info.get("sector", "")
-                long_name = (info.get("longName") or "").lower()
-                if any(word in long_name for word in ["etf", "index", "s&p", "fund"]) or raw_sector == "":
+                long_name  = (info.get("longName") or "").lower()
+                if any(w in long_name for w in ["etf", "index", "s&p", "fund"]) or raw_sector == "":
                     sector = "Index Fund"
                 else:
                     sector = raw_sector or "Unknown"
-                
+
                 stock_data.append({
                     "Ticker": ticker,
                     "Sector": sector,
                     "Quantity": quantity,
                     "Buy Price": buy_price,
                     "Current Price": round(current_price, 2),
-                    "Price (EUR)": round(price_eur, 2),
-                    "Value": round(value, 2),
-                    "Value (EUR)": round(value_eur, 2),
+                    "Price (EUR)": round(current_price * conv_rate, 2),
+                    "Value": round(current_price * quantity, 2),
+                    "Value (EUR)": round(today_value_eur, 2),
                     "Gain/Loss (EUR)": round(gain_eur, 2),
                     "Currency": asset_currency
                 })
-                total_stock_value_eur += value_eur
-                total_stock_gain_eur += gain_eur
+
+                total_stock_invested_eur += invested_eur
+                total_stock_value_eur    += today_value_eur
+                total_stock_gain_eur     += gain_eur
+                prev_stock_value_eur     += yesterday_value_eur
+
             except Exception:
                 continue
-    
+
     if stock_data:
         df_stocks = pd.DataFrame(stock_data)
         st.dataframe(df_stocks)
+        # compute 24h percent change
+        if prev_stock_value_eur > 0:
+            pct_stock = 100 * (total_stock_value_eur - prev_stock_value_eur) / prev_stock_value_eur
+        else:
+            pct_stock = 0.0
+        # determine color
+        if pct_stock > 0:
+            color_stock = "green"
+            sign_stock = "+"
+        elif pct_stock < 0:
+            color_stock = "red"
+            sign_stock = ""
+        else:
+            color_stock = "orange"
+            sign_stock = ""
         col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Total Stocks Gain/Loss (EUR)", f"€{total_stock_gain_eur:.2f}")
-        with col2:
-            st.metric("Total Stocks Value (EUR)", f"€{total_stock_value_eur:.2f}")
+        col1.metric("Total Stocks Gain/Loss (EUR)", f"€{total_stock_gain_eur:.2f}")
+        col2.markdown(
+            f"Total Stocks Value (EUR): €{total_stock_value_eur:.2f} "
+            f"<span style='color:{color_stock}'>({sign_stock}{pct_stock:.2f}% 24h)</span>",
+            unsafe_allow_html=True
+        )
     else:
         st.info("No Stocks/ETFs to display.")
-    
+
     st.markdown("---")
-    
+
     # --- Crypto Section ---
     st.subheader("Crypto")
     crypto_data = []
-    total_crypto_value_eur = 0
-    total_crypto_gain_eur = 0
+    total_crypto_invested_eur = 0.0
+    total_crypto_value_eur    = 0.0
+    total_crypto_gain_eur     = 0.0
+
+    prev_crypto_value_eur     = 0.0
+
     for asset in portfolio:
         if asset.get("asset_type") == "Crypto":
             asset_currency = asset.get("currency", "USD")
-            quantity = asset.get("quantity", 0)
-            buy_price = asset.get("buy_price", 0)
-            ticker = asset.get("ticker")
+            quantity       = asset.get("quantity", 0)
+            buy_price      = asset.get("buy_price", 0)
+            ticker         = asset.get("ticker")
             try:
                 crypto = yf.Ticker(ticker)
-                hist = crypto.history(period="1d")
-                if hist.empty:
+                hist   = crypto.history(period="2d")
+                if hist.shape[0] < 2:
                     continue
-                info = crypto.info
-                current_price = info.get("regularMarketPrice") or hist["Close"].iloc[-1]
-                conv_rate = get_conversion_factor(asset_currency, current_rates)
-                price_eur = current_price * conv_rate
-                buy_price_eur = buy_price * conv_rate
-                value = current_price * quantity
-                value_eur = price_eur * quantity
-                invested_eur = buy_price_eur * quantity
-                gain_eur = value_eur - invested_eur
-                
+                close_prices        = hist["Close"].values
+                prev_close_crypto   = close_prices[-2]
+                current_price       = close_prices[-1]
+                info                = crypto.info
+                if not current_price or current_price == 0:
+                    current_price = info.get("regularMarketPrice") or current_price
+                conv_rate           = get_conversion_factor(asset_currency, current_rates)
+                invested_eur        = buy_price * conv_rate * quantity
+                today_value_eur     = current_price * conv_rate * quantity
+                yesterday_value_eur_crypto = prev_close_crypto * conv_rate * quantity
+                gain_eur            = today_value_eur - invested_eur
+
                 crypto_data.append({
                     "Ticker": ticker,
                     "Quantity": quantity,
                     "Buy Price": buy_price,
                     "Current Price": round(current_price, 2),
-                    "Price (EUR)": round(price_eur, 2),
-                    "Value": round(value, 2),
-                    "Value (EUR)": round(value_eur, 2),
+                    "Price (EUR)": round(current_price * conv_rate, 2),
+                    "Value": round(current_price * quantity, 2),
+                    "Value (EUR)": round(today_value_eur, 2),
                     "Gain/Loss (EUR)": round(gain_eur, 2),
                     "Currency": asset_currency
                 })
-                total_crypto_value_eur += value_eur
-                total_crypto_gain_eur += gain_eur
+
+                total_crypto_invested_eur += invested_eur
+                total_crypto_value_eur    += today_value_eur
+                total_crypto_gain_eur     += gain_eur
+                prev_crypto_value_eur     += yesterday_value_eur_crypto
+
             except Exception:
                 continue
-    
+
     if crypto_data:
         df_crypto = pd.DataFrame(crypto_data)
         st.dataframe(df_crypto)
+        if prev_crypto_value_eur > 0:
+            pct_crypto = 100 * (total_crypto_value_eur - prev_crypto_value_eur) / prev_crypto_value_eur
+        else:
+            pct_crypto = 0.0
+        if pct_crypto > 0:
+            color_crypto = "green"
+            sign_crypto = "+"
+        elif pct_crypto < 0:
+            color_crypto = "red"
+            sign_crypto = ""
+        else:
+            color_crypto = "orange"
+            sign_crypto = ""
         col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Total Crypto Gain/Loss (EUR)", f"€{total_crypto_gain_eur:.2f}")
-        with col2:
-            st.metric("Total Crypto Value (EUR)", f"€{total_crypto_value_eur:.2f}")
+        col1.metric("Total Crypto Gain/Loss (EUR)", f"€{total_crypto_gain_eur:.2f}")
+        col2.markdown(
+            f"**Total Crypto Value (EUR): €{total_crypto_value_eur:.2f} "
+            f"<span style='color:{color_crypto}'>({sign_crypto}{pct_crypto:.2f}% 24h)</span>**",
+            unsafe_allow_html=True
+        )
     else:
         st.info("No Crypto to display.")
-    
+
     # --- Cash Section ---
     st.markdown("---")
     st.subheader("Cash")
-    cash_amount = cash.get("amount", 0.0)
-    cash_currency = cash.get("currency", "EUR")
-    conv_rate = get_conversion_factor(cash_currency, current_rates)
+    cash_amount    = cash.get("amount", 0.0)
+    cash_currency  = cash.get("currency", "EUR")
+    conv_rate      = get_conversion_factor(cash_currency, current_rates)
     cash_value_eur = cash_amount * conv_rate
     st.metric("Cash", f"€{cash_value_eur:.2f}")
-    
-    # --- Total Portfolio Value Counter ---
+
+    # --- Total Portfolio Section ---
     total_portfolio_value = total_stock_value_eur + total_crypto_value_eur + cash_value_eur
+    # total gain excludes cash, as before
+    total_portfolio_gain  = (total_stock_value_eur - total_stock_invested_eur) + \
+                            (total_crypto_value_eur - total_crypto_invested_eur)
+    # 24h change for portfolio excludes cash
+    prev_portfolio_asset_value = prev_stock_value_eur + prev_crypto_value_eur
+    if prev_portfolio_asset_value > 0:
+        pct_total = 100 * ((total_stock_value_eur + total_crypto_value_eur) - prev_portfolio_asset_value) / prev_portfolio_asset_value
+    else:
+        pct_total = 0.0
+    if pct_total > 0:
+        color_total = "green"
+        sign_total = "+"
+    elif pct_total < 0:
+        color_total = "red"
+        sign_total = ""
+    else:
+        color_total = "orange"
+        sign_total = ""
+
     st.markdown("---")
-    st.markdown(f"## Total Portfolio Value (EUR): €{total_portfolio_value:.2f}")
-    
+    col1, col2 = st.columns(2)
+    col1.metric("Total Portfolio Gain/Loss (EUR)", f"€{total_portfolio_gain:.2f}")
+    col2.markdown(
+        f"**Total Portfolio Value (EUR): €{total_portfolio_value:.2f} "
+        f"<span style='color:{color_total}'>({sign_total}{pct_total:.2f}% 24h)</span>**",
+        unsafe_allow_html=True
+    )
+
+    # --- Store breakdowns for exact history snapshot ---
+    st.session_state["latest_stocks_invested_eur"] = round(total_stock_invested_eur, 2)
+    st.session_state["latest_stocks_value_eur"]    = round(total_stock_value_eur,    2)
+    st.session_state["latest_stocks_gain_eur"]     = round(total_stock_gain_eur,     2)
+    st.session_state["latest_crypto_invested_eur"] = round(total_crypto_invested_eur, 2)
+    st.session_state["latest_crypto_value_eur"]    = round(total_crypto_value_eur,    2)
+    st.session_state["latest_crypto_gain_eur"]     = round(total_crypto_gain_eur,     2)
+    st.session_state["latest_cash_value_eur"]      = round(cash_value_eur,             2)
+    st.session_state["latest_total_value_eur"]     = round(total_portfolio_value,     2)
+    st.session_state["latest_total_gain_eur"]      = round(total_portfolio_gain,      2)
+
     # --- Portfolio Value Chart Expander ---
     with st.expander("Show Portfolio Value Chart"):
         history = load_history()
@@ -325,7 +412,7 @@ with tabs[0]:
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.write("No history data available for chart.")
-    
+
     # --- Manage Assets Section ---
     with st.expander("Manage Assets (Stocks/ETFs/Crypto)"):
         st.write("Each asset is displayed as **Ticker – Edit – Delete**.")
@@ -376,38 +463,30 @@ with tabs[0]:
 # -----------------------------
 with tabs[1]:
     st.header("Performance History")
-    
+
     if st.button("Save Performance Snapshot"):
-        total_invested = total_value = 0.0
-        for asset in portfolio:
-            cur = asset["currency"]
-            q   = asset["quantity"]
-            bp  = asset["buy_price"]
-            tkr = (get_final_ticker(asset["ticker"], asset["asset_type"], asset["market"])
-                   if asset["asset_type"]!="Crypto" else asset["ticker"])
-            try:
-                info = yf.Ticker(tkr).info
-                cp = info.get("regularMarketPrice") or yf.Ticker(tkr).history(period="1d")["Close"].iloc[-1]
-            except:
-                continue
-            conv = get_conversion_factor(cur, current_rates)
-            val_eur = cp * conv * q
-            inv_eur = bp * conv * q
-            total_value    += val_eur
-            total_invested += inv_eur
-        
-        cash_val = cash["amount"] * get_conversion_factor(cash["currency"], current_rates)
+        # pull every breakdown back out of session state:
         snapshot = {
             "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "total_invested_eur": total_invested,
-            "total_value_eur": total_value + cash_val,
-            "total_gain_eur": round((total_value + cash_val) - total_invested, 2)
+            "stocks_invested_eur": st.session_state.get("latest_stocks_invested_eur"),
+            "stocks_value_eur":    st.session_state.get("latest_stocks_value_eur"),
+            "stocks_gain_eur":     st.session_state.get("latest_stocks_gain_eur"),
+            "crypto_invested_eur": st.session_state.get("latest_crypto_invested_eur"),
+            "crypto_value_eur":    st.session_state.get("latest_crypto_value_eur"),
+            "crypto_gain_eur":     st.session_state.get("latest_crypto_gain_eur"),
+            "cash_value_eur":      st.session_state.get("latest_cash_value_eur"),
+            "total_invested_eur":  round(
+                st.session_state.get("latest_stocks_invested_eur", 0.0)
+              + st.session_state.get("latest_crypto_invested_eur", 0.0), 2
+            ),
+            "total_value_eur":     st.session_state.get("latest_total_value_eur"),
+            "total_gain_eur":      st.session_state.get("latest_total_gain_eur"),
         }
         history = load_history()
         history.append(snapshot)
         save_history(history)
         st.success("Snapshot saved!")
-    
+
     history = load_history()
     if history:
         df_history = pd.DataFrame(history)
@@ -417,7 +496,7 @@ with tabs[1]:
         df_display = df_history.drop(columns=["date"]).copy()
         df_display.set_index("date_table", inplace=True)
         st.dataframe(df_display)
-        
+
         # --- Download Button for history.json ---
         st.download_button(
             label="Download history.json",

@@ -67,15 +67,6 @@
         "added_date": "2025-04-14 19:34"
     },
     {
-        "ticker": "ETH-USD",
-        "asset_type": "Crypto",
-        "market": null,
-        "currency": "USD",
-        "buy_price": 0.0,
-        "quantity": 0.16278958,
-        "added_date": "2025-04-08 23:43:38"
-    },
-    {
         "ticker": "XRP-USD",
         "asset_type": "Crypto",
         "market": null,
@@ -83,15 +74,6 @@
         "buy_price": 0.0,
         "quantity": 300.8,
         "added_date": "2025-04-08 23:44:05"
-    },
-    {
-        "ticker": "BNB-USD",
-        "asset_type": "Crypto",
-        "market": null,
-        "currency": "USD",
-        "buy_price": 0.0,
-        "quantity": 0.075,
-        "added_date": "2025-04-08 23:44:27"
     },
     {
         "ticker": "DVN",
