@@ -23,20 +23,16 @@ def get_exchange_rates():
         if response.status_code == 200:
             data = response.json()
             return data["rates"]
-        else:
-            return None
     except Exception:
-        return None
+        pass
+    return None
 
 def get_conversion_factor(currency, rates):
     if currency.upper() in ["EURO", "EUR"]:
         return 1.0
     try:
         rate = rates.get(currency.upper())
-        if rate is not None:
-            return 1.0 / rate
-        else:
-            return 1.0
+        return 1.0 / rate if rate else 1.0
     except Exception:
         return 1.0
 
@@ -91,10 +87,7 @@ def get_final_ticker(ticker, asset_type, market):
                 return ticker + ".L"
             elif market == "EU":
                 return ticker + ".PA"
-            else:
-                return ticker
-    else:
-        return ticker
+    return ticker
 
 # -----------------------------
 # Streamlit Page Setup
@@ -155,13 +148,21 @@ with st.sidebar.form("asset_form"):
 
 st.sidebar.header("Manage Cash")
 with st.sidebar.form("cash_form"):
-    cash_amount = st.number_input("Cash Amount", min_value=0.0, step=0.01, format="%.2f", value=load_cash().get("amount", 0.0))
-    cash_currency = st.selectbox("Cash Currency", ["EUR", "USD", "GBP"],
-                                  index=["EUR", "USD", "GBP"].index(load_cash().get("currency", "EUR")))
+    cash_amount = st.number_input(
+        "Cash Amount",
+        min_value=0.0,
+        step=0.01,
+        format="%.2f",
+        value=load_cash().get("amount", 0.0)
+    )
+    cash_currency = st.selectbox(
+        "Cash Currency",
+        ["EUR", "USD", "GBP"],
+        index=["EUR", "USD", "GBP"].index(load_cash().get("currency", "EUR"))
+    )
     cash_submit = st.form_submit_button("Update Cash")
     if cash_submit:
-        cash = {"amount": cash_amount, "currency": cash_currency}
-        save_cash(cash)
+        save_cash({"amount": cash_amount, "currency": cash_currency})
         st.sidebar.success("Cash amount updated!")
 
 # -----------------------------
@@ -206,12 +207,14 @@ with tabs[0]:
                 value_eur = price_eur * quantity
                 invested_eur = buy_price_eur * quantity
                 gain_eur = value_eur - invested_eur
+                
                 raw_sector = info.get("sector", "")
-                long_name = info.get("longName", "").lower() if info.get("longName") else ""
+                long_name = (info.get("longName") or "").lower()
                 if any(word in long_name for word in ["etf", "index", "s&p", "fund"]) or raw_sector == "":
                     sector = "Index Fund"
                 else:
                     sector = raw_sector or "Unknown"
+                
                 stock_data.append({
                     "Ticker": ticker,
                     "Sector": sector,
@@ -228,14 +231,15 @@ with tabs[0]:
                 total_stock_gain_eur += gain_eur
             except Exception:
                 continue
+    
     if stock_data:
         df_stocks = pd.DataFrame(stock_data)
         st.dataframe(df_stocks)
         col1, col2 = st.columns(2)
         with col1:
-            st.metric(label="Total Stocks Gain/Loss (EUR)", value=f"€{total_stock_gain_eur:.2f}")
+            st.metric("Total Stocks Gain/Loss (EUR)", f"€{total_stock_gain_eur:.2f}")
         with col2:
-            st.metric(label="Total Stocks Value (EUR)", value=f"€{total_stock_value_eur:.2f}")
+            st.metric("Total Stocks Value (EUR)", f"€{total_stock_value_eur:.2f}")
     else:
         st.info("No Stocks/ETFs to display.")
     
@@ -266,6 +270,7 @@ with tabs[0]:
                 value_eur = price_eur * quantity
                 invested_eur = buy_price_eur * quantity
                 gain_eur = value_eur - invested_eur
+                
                 crypto_data.append({
                     "Ticker": ticker,
                     "Quantity": quantity,
@@ -281,14 +286,15 @@ with tabs[0]:
                 total_crypto_gain_eur += gain_eur
             except Exception:
                 continue
+    
     if crypto_data:
         df_crypto = pd.DataFrame(crypto_data)
         st.dataframe(df_crypto)
         col1, col2 = st.columns(2)
         with col1:
-            st.metric(label="Total Crypto Gain/Loss (EUR)", value=f"€{total_crypto_gain_eur:.2f}")
+            st.metric("Total Crypto Gain/Loss (EUR)", f"€{total_crypto_gain_eur:.2f}")
         with col2:
-            st.metric(label="Total Crypto Value (EUR)", value=f"€{total_crypto_value_eur:.2f}")
+            st.metric("Total Crypto Value (EUR)", f"€{total_crypto_value_eur:.2f}")
     else:
         st.info("No Crypto to display.")
     
@@ -299,7 +305,7 @@ with tabs[0]:
     cash_currency = cash.get("currency", "EUR")
     conv_rate = get_conversion_factor(cash_currency, current_rates)
     cash_value_eur = cash_amount * conv_rate
-    st.metric(label="Cash", value=f"€{cash_value_eur:.2f}")
+    st.metric("Cash", f"€{cash_value_eur:.2f}")
     
     # --- Total Portfolio Value Counter ---
     total_portfolio_value = total_stock_value_eur + total_crypto_value_eur + cash_value_eur
@@ -311,44 +317,27 @@ with tabs[0]:
         history = load_history()
         if history:
             df_history = pd.DataFrame(history)
-            df_history["date"] = pd.to_datetime(df_history["date"], format="%Y-%m-%d %H:%M", errors="coerce")
+            df_history["date"] = pd.to_datetime(
+                df_history["date"], format="%Y-%m-%d %H:%M", errors="coerce"
+            )
             df_history.sort_values(by="date", inplace=True)
-            if "total_value_eur" in df_history.columns:
-                default_y_min = float(df_history["total_value_eur"].min())
-                default_y_max = float(df_history["total_value_eur"].max())
-                y_min = st.number_input("Y-axis Min (EUR)", value=default_y_min)
-                y_max = st.number_input("Y-axis Max (EUR)", value=default_y_max)
-                default_x_min = df_history["date"].min().date()
-                default_x_max = df_history["date"].max().date()
-                x_min = st.date_input("X-axis Start", value=default_x_min)
-                x_max = st.date_input("X-axis End", value=default_x_max)
-                fig = px.line(
-                    df_history, x="date", y="total_value_eur",
-                    title="Portfolio Value History"
-                )
-                fig.update_layout(
-                    xaxis_range=[x_min.strftime("%Y-%m-%d"), x_max.strftime("%Y-%m-%d")],
-                    yaxis_range=[y_min, y_max]
-                )
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": True})
-            else:
-                st.write("No total portfolio value data found in history.")
+            fig = px.line(df_history, x="date", y="total_value_eur", title="Portfolio Value History")
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.write("No history data available for chart.")
     
-    # --- Manage Assets Section (Horizontal Layout) ---
+    # --- Manage Assets Section ---
     with st.expander("Manage Assets (Stocks/ETFs/Crypto)"):
-        st.write("Each asset is displayed as **Ticker – Edit – Delete**. If there are more than 4, they wrap onto a new row.")
+        st.write("Each asset is displayed as **Ticker – Edit – Delete**.")
         assets = list(enumerate(portfolio))
         items_per_row = 4
         for row_start in range(0, len(assets), items_per_row):
-            row_slice = assets[row_start : row_start + items_per_row]
-            # Each asset occupies 3 columns: Ticker, Edit, Delete.
+            row_slice = assets[row_start: row_start + items_per_row]
             row_cols = st.columns(len(row_slice) * 3)
             for j, (idx, asset) in enumerate(row_slice):
                 col_ticker = row_cols[3*j]
-                col_edit = row_cols[3*j + 1]
-                col_delete = row_cols[3*j + 2]
+                col_edit   = row_cols[3*j+1]
+                col_delete = row_cols[3*j+2]
                 col_ticker.write(f"**{asset['ticker']}**")
                 if col_edit.button("✏️", key=f"edit_{idx}"):
                     st.session_state.edit_asset = idx
@@ -360,33 +349,23 @@ with tabs[0]:
                 if st.session_state.get("edit_asset") == idx:
                     with st.form(key=f"edit_form_{idx}"):
                         new_buy_price = st.number_input(
-                            "New Buy Price",
-                            min_value=0.0,
-                            step=0.01,
-                            format="%.2f",
+                            "New Buy Price", min_value=0.0, step=0.01, format="%.2f",
                             value=asset.get("buy_price", 0.0)
                         )
                         if asset.get("asset_type") == "Crypto":
                             new_quantity = st.number_input(
-                                "New Quantity",
-                                min_value=0.0,
-                                step=0.00000001,
-                                format="%.8f",
+                                "New Quantity", min_value=0.0, step=0.00000001, format="%.8f",
                                 value=asset.get("quantity", 0.0)
                             )
                         else:
                             new_quantity = st.number_input(
-                                "New Quantity",
-                                min_value=0.0,
-                                step=0.01,
-                                format="%.2f",
+                                "New Quantity", min_value=0.0, step=0.01, format="%.2f",
                                 value=asset.get("quantity", 0.0)
                             )
-                        submit_edit = st.form_submit_button("Save")
-                        if submit_edit:
-                            portfolio[idx]["buy_price"] = new_buy_price
-                            portfolio[idx]["quantity"] = new_quantity
-                            portfolio[idx]["added_date"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                        if st.form_submit_button("Save"):
+                            asset["buy_price"] = new_buy_price
+                            asset["quantity"]  = new_quantity
+                            asset["added_date"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                             save_portfolio(portfolio)
                             st.success("Asset updated!")
                             st.session_state.edit_asset = None
@@ -399,60 +378,31 @@ with tabs[1]:
     st.header("Performance History")
     
     if st.button("Save Performance Snapshot"):
-        total_invested_stocks = 0
-        total_value_stocks = 0
-        total_invested_crypto = 0
-        total_value_crypto = 0
+        total_invested = total_value = 0.0
         for asset in portfolio:
-            asset_type = asset.get("asset_type")
-            asset_currency = asset.get("currency", "USD")
-            quantity = asset.get("quantity", 0)
-            buy_price = asset.get("buy_price", 0)
-            if asset_type == "Stock/ETF":
-                ticker = get_final_ticker(asset.get("ticker"), "Stock/ETF", asset.get("market"))
-            else:
-                ticker = asset.get("ticker")
+            cur = asset["currency"]
+            q   = asset["quantity"]
+            bp  = asset["buy_price"]
+            tkr = (get_final_ticker(asset["ticker"], asset["asset_type"], asset["market"])
+                   if asset["asset_type"]!="Crypto" else asset["ticker"])
             try:
-                tkr = yf.Ticker(ticker)
-                hist = tkr.history(period="1d")
-                if hist.empty:
-                    continue
-                info = tkr.info
-                current_price = info.get("regularMarketPrice") or hist["Close"].iloc[-1]
-                conv_rate = get_conversion_factor(asset_currency, current_rates)
-                price_eur = current_price * conv_rate
-                buy_price_eur = buy_price * conv_rate
-                value = current_price * quantity
-                value_eur = price_eur * quantity
-                invested_eur = buy_price_eur * quantity
-                if asset_type == "Stock/ETF":
-                    total_invested_stocks += invested_eur
-                    total_value_stocks += value_eur
-                else:
-                    total_invested_crypto += invested_eur
-                    total_value_crypto += value_eur
-            except Exception:
+                info = yf.Ticker(tkr).info
+                cp = info.get("regularMarketPrice") or yf.Ticker(tkr).history(period="1d")["Close"].iloc[-1]
+            except:
                 continue
+            conv = get_conversion_factor(cur, current_rates)
+            val_eur = cp * conv * q
+            inv_eur = bp * conv * q
+            total_value    += val_eur
+            total_invested += inv_eur
         
-        cash_amount = cash.get("amount", 0.0)
-        cash_currency = cash.get("currency", "EUR")
-        cash_conv_rate = get_conversion_factor(cash_currency, current_rates)
-        cash_value_eur = cash_amount * cash_conv_rate
-        
+        cash_val = cash["amount"] * get_conversion_factor(cash["currency"], current_rates)
         snapshot = {
             "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "stocks_invested_eur": total_invested_stocks,
-            "stocks_value_eur": total_value_stocks,
-            "stocks_gain_eur": round(total_value_stocks - total_invested_stocks, 2),
-            "crypto_invested_eur": total_invested_crypto,
-            "crypto_value_eur": total_value_crypto,
-            "crypto_gain_eur": round(total_value_crypto - total_invested_crypto, 2),
-            "cash_value_eur": round(cash_value_eur, 2),
-            "total_invested_eur": total_invested_stocks + total_invested_crypto,
-            "total_value_eur": total_value_stocks + total_value_crypto + cash_value_eur,
-            "total_gain_eur": round((total_value_stocks + total_value_crypto) - (total_invested_stocks + total_invested_crypto), 2)
+            "total_invested_eur": total_invested,
+            "total_value_eur": total_value + cash_val,
+            "total_gain_eur": round((total_value + cash_val) - total_invested, 2)
         }
-        
         history = load_history()
         history.append(snapshot)
         save_history(history)
@@ -463,25 +413,28 @@ with tabs[1]:
         df_history = pd.DataFrame(history)
         df_history["date"] = pd.to_datetime(df_history["date"], format="%Y-%m-%d %H:%M", errors="coerce")
         df_history.sort_values(by="date", ascending=False, inplace=True)
-        
         df_history["date_table"] = df_history["date"].dt.strftime("%Y-%m-%d")
         df_display = df_history.drop(columns=["date"]).copy()
         df_display.set_index("date_table", inplace=True)
-        
-        numeric_cols = df_display.select_dtypes(include=["float64", "int64"]).columns
-        df_display[numeric_cols] = df_display[numeric_cols].round(2)
-        
         st.dataframe(df_display)
+        
+        # --- Download Button for history.json ---
+        st.download_button(
+            label="Download history.json",
+            data=json.dumps(history, indent=4),
+            file_name="history.json",
+            mime="application/json"
+        )
     else:
         st.info("No history snapshots yet.")
+
     # --- Manage History Section (Deletion Only) ---
     with st.expander("Manage History"):
         st.write("Delete snapshots:")
-        history = load_history()
         if history:
             for idx, snapshot in enumerate(history):
-                st.write(f"Snapshot Date: {snapshot.get('date')}, Total Value: €{snapshot.get('total_value_eur', 0.0):.2f}")
-                if st.button("Delete Snapshot", key=f"del_snapshot_{idx}"):
+                st.write(f"{snapshot['date']}: €{snapshot['total_value_eur']:.2f}")
+                if st.button("❌", key=f"del_snapshot_{idx}"):
                     del history[idx]
                     save_history(history)
                     st.success("Snapshot deleted.")
