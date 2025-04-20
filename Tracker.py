@@ -6,6 +6,8 @@ import os
 from datetime import datetime
 import plotly.express as px
 import requests
+from github import Github
+from datetime import datetime
 
 # -----------------------------
 # Initialize Session State Variables
@@ -507,7 +509,7 @@ with tabs[1]:
     else:
         st.info("No history snapshots yet.")
 
-   # --- Manage History Section (Deletion Only) ---
+# --- Manage History Section (Deletion Only) ---
     with st.expander("Manage History"):
         st.write("Delete snapshots:")
         if history:
@@ -519,28 +521,46 @@ with tabs[1]:
                     save_history(history)
                     st.success("Snapshot deleted locally!")
 
-                    # 2) Push the updated history.json to GitHub
-                    try:
-                        # Read updated file
-                        with open("history.json", "r") as f:
-                            new_content = f.read()
-                        # Auth & repo
-                        gh   = Github(st.secrets["GITHUB_TOKEN"])
-                        repo = gh.get_repo("drmbl/PortfolioTracker")
-                        contents = repo.get_contents("history.json", ref="main")
-                        # Commit change
-                        repo.update_file(
-                            path    = contents.path,
-                            message = f"Auto‑delete history entry {snapshot['date']}",
-                            content = new_content,
-                            sha     = contents.sha,
-                            branch  = "main",
-                        )
-                        st.success("history.json deletion pushed to GitHub ✅")
-                    except Exception as e:
-                        st.error(f"Failed to push deletion to GitHub: {e}")
+                    # 2) DEBUG: report token presence
+                    has_token = "GITHUB_TOKEN" in st.secrets and bool(st.secrets["GITHUB_TOKEN"])
+                    st.write("• GITHUB_TOKEN present?", has_token)
+                    if not has_token:
+                        st.error("❌ No GITHUB_TOKEN found in Streamlit Secrets!")
+                    else:
+                        # 3) Push the updated history.json to GitHub
+                        try:
+                            # Read updated file
+                            with open("history.json", "r") as f:
+                                new_content = f.read()
+                            st.write(f"• Read history.json ({len(new_content)} bytes)")
 
-                    # 3) Rerun so UI updates
+                            # Auth & repo
+                            gh   = Github(st.secrets["GITHUB_TOKEN"])
+                            user = gh.get_user().login
+                            st.write(f"• Authenticated as GitHub user: {user}")
+
+                            repo     = gh.get_repo("drmbl/PortfolioTracker")
+                            st.write("• Repo found:", repo.full_name)
+
+                            contents = repo.get_contents("history.json", ref="main")
+                            st.write("• Current history.json SHA:", contents.sha)
+
+                            # Commit change
+                            commit = repo.update_file(
+                                path    = contents.path,
+                                message = f"Auto‑delete history entry {snapshot['date']}",
+                                content = new_content,
+                                sha     = contents.sha,
+                                branch  = "main",
+                            )
+                            st.success("✅ history.json deletion pushed to GitHub!")
+                            st.write("• New commit SHA:", commit["commit"].sha)
+                        except Exception as e:
+                            import traceback
+                            st.error(f"❌ Failed to push deletion to GitHub: {e}")
+                            st.text(traceback.format_exc())
+
+                    # 4) Rerun so UI updates
                     st.experimental_rerun()
         else:
             st.info("No snapshots available.")
