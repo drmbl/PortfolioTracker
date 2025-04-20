@@ -507,16 +507,40 @@ with tabs[1]:
     else:
         st.info("No history snapshots yet.")
 
-    # --- Manage History Section (Deletion Only) ---
+   # --- Manage History Section (Deletion Only) ---
     with st.expander("Manage History"):
         st.write("Delete snapshots:")
         if history:
             for idx, snapshot in enumerate(history):
                 st.write(f"{snapshot['date']}: €{snapshot['total_value_eur']:.2f}")
                 if st.button("❌", key=f"del_snapshot_{idx}"):
+                    # 1) Remove locally and save
                     del history[idx]
                     save_history(history)
-                    st.success("Snapshot deleted.")
+                    st.success("Snapshot deleted locally!")
+
+                    # 2) Push the updated history.json to GitHub
+                    try:
+                        # Read updated file
+                        with open("history.json", "r") as f:
+                            new_content = f.read()
+                        # Auth & repo
+                        gh   = Github(st.secrets["GITHUB_TOKEN"])
+                        repo = gh.get_repo("drmbl/PortfolioTracker")
+                        contents = repo.get_contents("history.json", ref="main")
+                        # Commit change
+                        repo.update_file(
+                            path    = contents.path,
+                            message = f"Auto‑delete history entry {snapshot['date']}",
+                            content = new_content,
+                            sha     = contents.sha,
+                            branch  = "main",
+                        )
+                        st.success("history.json deletion pushed to GitHub ✅")
+                    except Exception as e:
+                        st.error(f"Failed to push deletion to GitHub: {e}")
+
+                    # 3) Rerun so UI updates
                     st.experimental_rerun()
         else:
             st.info("No snapshots available.")

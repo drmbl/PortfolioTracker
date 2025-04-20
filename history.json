@@ -110,5 +110,18 @@
         "total_invested_eur": 2555.96,
         "total_value_eur": 9139.04,
         "total_gain_eur": 845.08
+    },
+    {
+        "date": "2025-04-20 10:59",
+        "stocks_invested_eur": 2556.47,
+        "stocks_value_eur": 2191.8,
+        "stocks_gain_eur": -364.67,
+        "crypto_invested_eur": 0.0,
+        "crypto_value_eur": 1207.92,
+        "crypto_gain_eur": 1207.92,
+        "cash_value_eur": 5738.0,
+        "total_invested_eur": 2556.47,
+        "total_value_eur": 9137.72,
+        "total_gain_eur": 843.25
     }
 ]
