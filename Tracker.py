@@ -6,8 +6,6 @@ import os
 from datetime import datetime
 import plotly.express as px
 import requests
-from github import Github
-from datetime import datetime
 
 # -----------------------------
 # Initialize Session State Variables
@@ -510,57 +508,56 @@ with tabs[1]:
         st.info("No history snapshots yet.")
 
 # --- Manage History Section (Deletion Only) ---
-    with st.expander("Manage History"):
-        st.write("Delete snapshots:")
-        if history:
-            for idx, snapshot in enumerate(history):
-                st.write(f"{snapshot['date']}: €{snapshot['total_value_eur']:.2f}")
-                if st.button("❌", key=f"del_snapshot_{idx}"):
-                    # 1) Remove locally and save
-                    del history[idx]
-                    save_history(history)
-                    st.success("Snapshot deleted locally!")
+with st.expander("Manage History"):
+    st.write("Delete snapshots:")
+    if history:
+        for idx, snapshot in enumerate(history):
+            # two columns: text on left, delete button on right
+            col_text, col_button = st.columns([9, 1])
+            col_text.write(f"{snapshot['date']}: €{snapshot['total_value_eur']:.2f}")
 
-                    # 2) DEBUG: report token presence
-                    has_token = "GITHUB_TOKEN" in st.secrets and bool(st.secrets["GITHUB_TOKEN"])
-                    st.write("• GITHUB_TOKEN present?", has_token)
-                    if not has_token:
-                        st.error("❌ No GITHUB_TOKEN found in Streamlit Secrets!")
-                    else:
-                        # 3) Push the updated history.json to GitHub
-                        try:
-                            # Read updated file
-                            with open("history.json", "r") as f:
-                                new_content = f.read()
-                            st.write(f"• Read history.json ({len(new_content)} bytes)")
+            # this button click is the *only* place we call experimental_rerun()
+            if col_button.button("❌", key=f"del_snapshot_{idx}"):
+                # 1) Remove locally and save
+                del history[idx]
+                save_history(history)
+                st.success("Snapshot deleted locally!")
 
-                            # Auth & repo
-                            gh   = Github(st.secrets["GITHUB_TOKEN"])
-                            user = gh.get_user().login
-                            st.write(f"• Authenticated as GitHub user: {user}")
+                # 2) DEBUG: report token presence
+                has_token = "GITHUB_TOKEN" in st.secrets and bool(st.secrets["GITHUB_TOKEN"])
+                st.write("• GITHUB_TOKEN present?", has_token)
+                if not has_token:
+                    st.error("❌ No GITHUB_TOKEN found in Streamlit Secrets!")
+                else:
+                    # 3) Push the updated history.json to GitHub
+                    try:
+                        # Read updated file
+                        with open("history.json", "r") as f:
+                            new_content = f.read()
+                        st.write(f"• Read history.json ({len(new_content)} bytes)")
 
-                            repo     = gh.get_repo("drmbl/PortfolioTracker")
-                            st.write("• Repo found:", repo.full_name)
+                        # Auth & repo
+                        gh   = Github(st.secrets["GITHUB_TOKEN"])
+                        user = gh.get_user().login
+                        st.write(f"• Authenticated as GitHub user: {user}")
 
-                            contents = repo.get_contents("history.json", ref="main")
-                            st.write("• Current history.json SHA:", contents.sha)
+                        repo     = gh.get_repo("drmbl/PortfolioTracker")
+                        st.write("• Repo found:", repo.full_name)
 
-                            # Commit change
-                            commit = repo.update_file(
-                                path    = contents.path,
-                                message = f"Auto‑delete history entry {snapshot['date']}",
-                                content = new_content,
-                                sha     = contents.sha,
-                                branch  = "main",
-                            )
-                            st.success("✅ history.json deletion pushed to GitHub!")
-                            st.write("• New commit SHA:", commit["commit"].sha)
-                        except Exception as e:
-                            import traceback
-                            st.error(f"❌ Failed to push deletion to GitHub: {e}")
-                            st.text(traceback.format_exc())
+                        contents = repo.get_contents("history.json", ref="main")
+                        st.write("• Current history.json SHA:", contents.sha)
 
-                    # 4) Rerun so UI updates
-                    st.experimental_rerun()
-        else:
-            st.info("No snapshots available.")
+                        # Commit change
+                        commit = repo.update_file(
+                            path    = contents.path,
+                            message = f"Auto‑delete history entry {snapshot['date']}",
+                            content = new_content,
+                            sha     = contents.sha,
+                            branch  = "main",
+                        )
+                        st.success("✅ history.json deletion pushed to GitHub!")
+                        st.write("• New commit SHA:", commit["commit"].sha)
+                    except Exception as e:
+                        import traceback
+                        st.error(f"❌ Failed to push deletion to GitHub: {e}")
+                        st.text(traceback.format_exc())
