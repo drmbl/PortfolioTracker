@@ -58,15 +58,6 @@
         "added_date": "2025-04-08 23:39:03"
     },
     {
-        "ticker": "BTC-USD",
-        "asset_type": "Crypto",
-        "market": null,
-        "currency": "USD",
-        "buy_price": 0.0,
-        "quantity": 0.00890254,
-        "added_date": "2025-04-14 19:34"
-    },
-    {
         "ticker": "XRP-USD",
         "asset_type": "Crypto",
         "market": null,

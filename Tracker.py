@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 import plotly.express as px
 import requests
+from github import Github
 
 # -----------------------------
 # Initialize Session State Variables
@@ -98,6 +99,9 @@ st.title("Portfolio Tracker")
 # -----------------------------
 # Sidebar: Add New Asset and Cash Input
 # -----------------------------
+# -----------------------------
+# Sidebar: Add New Asset and Cash
+# -----------------------------
 st.sidebar.header("Add a New Asset")
 with st.sidebar.form("asset_form"):
     asset_type = st.selectbox("Asset Type", ["Stock/ETF", "Crypto"])
@@ -113,14 +117,16 @@ with st.sidebar.form("asset_form"):
     else:
         ticker_input = st.text_input("Ticker (e.g., AAPL, BATS, JNJ, JNJ.DE)")
         market = st.selectbox("Market/Exchange", ["US", "LSE", "EU"])
-    currency = st.selectbox("Asset Currency", ["USD", "GBP", "EUR"])
-    buy_price = st.number_input("Buy Price (optional)", min_value=0.0, step=0.01, format="%.2f", value=0.0)
-    quantity = st.number_input("Quantity", min_value=0.0, step=0.01, format="%.2f")
-    submit = st.form_submit_button("Add Asset")
+    currency    = st.selectbox("Asset Currency", ["USD", "GBP", "EUR"])
+    buy_price   = st.number_input("Buy Price (optional)", min_value=0.0, step=0.01, format="%.2f", value=0.0)
+    quantity    = st.number_input("Quantity",             min_value=0.0, step=0.01, format="%.2f")
+    submit      = st.form_submit_button("Add Asset")
+
     if submit:
         if ticker_input.strip() == "" or quantity <= 0:
             st.sidebar.error("Please enter a valid ticker and a quantity > 0.")
         else:
+            # 1) Save locally
             ticker_upper = ticker_input.strip().upper()
             final_ticker = get_final_ticker(ticker_upper, asset_type, market)
             try:
@@ -132,20 +138,41 @@ with st.sidebar.form("asset_form"):
             else:
                 portfolio = load_portfolio()
                 portfolio.append({
-                    "ticker": ticker_upper,
-                    "asset_type": asset_type,
-                    "market": market,
-                    "currency": currency,
-                    "buy_price": buy_price,
-                    "quantity": quantity,
-                    "added_date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                    "ticker":      ticker_upper,
+                    "asset_type":  asset_type,
+                    "market":      market,
+                    "currency":    currency,
+                    "buy_price":   buy_price,
+                    "quantity":    quantity,
+                    "added_date":  datetime.now().strftime("%Y-%m-%d %H:%M")
                 })
                 save_portfolio(portfolio)
                 st.sidebar.success(f"Asset '{ticker_upper}' added!")
 
+                # 2) PUSH portfolio.json TO GITHUB
+                try:
+                    with open("portfolio.json", "r") as f:
+                        new_portfolio = f.read()
+                    gh       = Github(st.secrets["GITHUB_TOKEN"])
+                    repo     = gh.get_repo("drmbl/PortfolioTracker")
+                    contents = repo.get_contents("portfolio.json", ref="main")
+                    repo.update_file(
+                        path    = contents.path,
+                        message = f"Auto‑update portfolio.json after adding {ticker_upper}",
+                        content = new_portfolio,
+                        sha     = contents.sha,
+                        branch  = "main",
+                    )
+                    st.sidebar.success("portfolio.json pushed to GitHub ✅")
+                except Exception as e:
+                    st.sidebar.error(f"Failed to push portfolio.json: {e}")
+
+# <-- the 'with st.sidebar.form("asset_form")' block ends here -->
+
+# Now re‑open the sidebar for cash management at top level:
 st.sidebar.header("Manage Cash")
 with st.sidebar.form("cash_form"):
-    cash_amount = st.number_input(
+    cash_amount   = st.number_input(
         "Cash Amount",
         min_value=0.0,
         step=0.01,
@@ -161,6 +188,7 @@ with st.sidebar.form("cash_form"):
     if cash_submit:
         save_cash({"amount": cash_amount, "currency": cash_currency})
         st.sidebar.success("Cash amount updated!")
+
 
 # -----------------------------
 # Load Portfolio and Cash Data
@@ -429,11 +457,31 @@ with tabs[0]:
                 if col_edit.button("✏️", key=f"edit_{idx}"):
                     st.session_state.edit_asset = idx
                 if col_delete.button("❌", key=f"delete_{idx}"):
+    # 1) Remove locally & save
                     del portfolio[idx]
                     save_portfolio(portfolio)
-                    st.success("Asset deleted!")
-                    st.experimental_rerun()
-                if st.session_state.get("edit_asset") == idx:
+                    st.success("Asset deleted locally!")
+
+    # 2) Push portfolio.json to GitHub
+    try:
+        with open("portfolio.json", "r") as f:
+            new_portfolio = f.read()
+        gh   = Github(st.secrets["GITHUB_TOKEN"])
+        repo = gh.get_repo("drmbl/PortfolioTracker")
+        contents = repo.get_contents("portfolio.json", ref="main")
+        repo.update_file(
+            path    = contents.path,
+            message = f"Auto‑update portfolio.json after deletion {idx}",
+            content = new_portfolio,
+            sha     = contents.sha,
+            branch  = "main",
+        )
+        st.success("portfolio.json pushed to GitHub ✅")
+    except Exception as e:
+        st.error(f"Failed to push portfolio.json: {e}")
+
+    # 3) Rerun so UI updates
+    if st.session_state.get("edit_asset") == idx:
                     with st.form(key=f"edit_form_{idx}"):
                         new_buy_price = st.number_input(
                             "New Buy Price", min_value=0.0, step=0.01, format="%.2f",
