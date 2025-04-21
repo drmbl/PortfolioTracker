@@ -456,29 +456,36 @@ with tabs[0]:
                 col_ticker.write(f"**{asset['ticker']}**")
                 if col_edit.button("✏️", key=f"edit_{idx}"):
                     st.session_state.edit_asset = idx
-                if col_delete.button("❌", key=f"delete_{idx}"):
-    # 1) Remove locally & save
-                    del portfolio[idx]
-                    save_portfolio(portfolio)
-                    st.success("Asset deleted locally!")
+            if col_delete.button("❌", key=f"delete_{idx}"):
+                # 1) Remove locally & save
+                del portfolio[idx]
+                save_portfolio(portfolio)
+                st.success("Asset deleted locally!")
 
-    # 2) Push portfolio.json to GitHub
-    try:
-        with open("portfolio.json", "r") as f:
-            new_portfolio = f.read()
-        gh   = Github(st.secrets["GITHUB_TOKEN"])
-        repo = gh.get_repo("drmbl/PortfolioTracker")
-        contents = repo.get_contents("portfolio.json", ref="main")
-        repo.update_file(
-            path    = contents.path,
-            message = f"Auto‑update portfolio.json after deletion {idx}",
-            content = new_portfolio,
-            sha     = contents.sha,
-            branch  = "main",
-        )
-        st.success("portfolio.json pushed to GitHub ✅")
-    except Exception as e:
-        st.error(f"Failed to push portfolio.json: {e}")
+                # 2) Push portfolio.json to GitHub
+                try:
+                    with open("portfolio.json", "r") as f:
+                        new_portfolio = f.read()
+                    gh       = Github(st.secrets["GITHUB_TOKEN"])
+                    repo     = gh.get_repo("drmbl/PortfolioTracker")
+                    contents = repo.get_contents("portfolio.json", ref="main")
+                    repo.update_file(
+                        path    = contents.path,
+                        message = f"Auto‑update portfolio.json after deletion of {asset['ticker']}",
+                        content = new_portfolio,
+                        sha     = contents.sha,
+                        branch  = "main",
+                    )
+                    st.success("portfolio.json pushed to GitHub ✅")
+                except Exception as e:
+                    st.error(f"Failed to push portfolio.json: {e}")
+
+                # 3) Rerun so UI updates
+                try:
+                    st.experimental_rerun()
+                except AttributeError:
+                    pass
+
 
     # 3) Rerun so UI updates
     if st.session_state.get("edit_asset") == idx:
@@ -512,40 +519,66 @@ with tabs[0]:
 with tabs[1]:
     st.header("Performance History")
 
-    if st.button("Save Performance Snapshot"):
-        # pull every breakdown back out of session state:
-        snapshot = {
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "stocks_invested_eur": st.session_state.get("latest_stocks_invested_eur"),
-            "stocks_value_eur":    st.session_state.get("latest_stocks_value_eur"),
-            "stocks_gain_eur":     st.session_state.get("latest_stocks_gain_eur"),
-            "crypto_invested_eur": st.session_state.get("latest_crypto_invested_eur"),
-            "crypto_value_eur":    st.session_state.get("latest_crypto_value_eur"),
-            "crypto_gain_eur":     st.session_state.get("latest_crypto_gain_eur"),
-            "cash_value_eur":      st.session_state.get("latest_cash_value_eur"),
-            "total_invested_eur":  round(
-                st.session_state.get("latest_stocks_invested_eur", 0.0)
-              + st.session_state.get("latest_crypto_invested_eur", 0.0), 2
-            ),
-            "total_value_eur":     st.session_state.get("latest_total_value_eur"),
-            "total_gain_eur":      st.session_state.get("latest_total_gain_eur"),
-        }
-        history = load_history()
-        history.append(snapshot)
-        save_history(history)
-        st.success("Snapshot saved!")
+    # two side‑by‑side buttons
+    col_snap, col_push = st.columns(2)
+    with col_snap:
+        if st.button("Save Performance Snapshot"):
+            # build & save snapshot as before
+            snapshot = {
+                "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "stocks_invested_eur": st.session_state.get("latest_stocks_invested_eur"),
+                "stocks_value_eur":    st.session_state.get("latest_stocks_value_eur"),
+                "stocks_gain_eur":     st.session_state.get("latest_stocks_gain_eur"),
+                "crypto_invested_eur": st.session_state.get("latest_crypto_invested_eur"),
+                "crypto_value_eur":    st.session_state.get("latest_crypto_value_eur"),
+                "crypto_gain_eur":     st.session_state.get("latest_crypto_gain_eur"),
+                "cash_value_eur":      st.session_state.get("latest_cash_value_eur"),
+                "total_invested_eur":  round(
+                    st.session_state.get("latest_stocks_invested_eur", 0.0)
+                  + st.session_state.get("latest_crypto_invested_eur", 0.0), 2
+                ),
+                "total_value_eur":     st.session_state.get("latest_total_value_eur"),
+                "total_gain_eur":      st.session_state.get("latest_total_gain_eur"),
+            }
+            history = load_history()
+            history.append(snapshot)
+            save_history(history)
+            st.success("Snapshot saved locally!")
 
+    with col_push:
+        if st.button("Push All to GitHub"):
+            try:
+                gh   = Github(st.secrets["GITHUB_TOKEN"])
+                repo = gh.get_repo("drmbl/PortfolioTracker")
+                # list of files to update
+                files = ["tracker.py", "portfolio.json", "history.json", "cash.json"]
+                for fname in files:
+                    with open(fname, "r") as f:
+                        content = f.read()
+                    gh_file = repo.get_contents(fname, ref="main")
+                    repo.update_file(
+                        path    = fname,
+                        message = f"Auto‑push {fname} @ {datetime.now():%Y-%m-%d %H:%M}",
+                        content = content,
+                        sha     = gh_file.sha,
+                        branch  = "main",
+                    )
+                st.success("All files pushed to GitHub ✅")
+            except Exception as e:
+                st.error(f"Failed to push all files to GitHub: {e}")
+
+    # now the rest of your History tab as before:
     history = load_history()
     if history:
         df_history = pd.DataFrame(history)
-        df_history["date"] = pd.to_datetime(df_history["date"], format="%Y-%m-%d %H:%M", errors="coerce")
+        df_history["date"] = pd.to_datetime(df_history["date"],
+                                            format="%Y-%m-%d %H:%M", errors="coerce")
         df_history.sort_values(by="date", ascending=False, inplace=True)
         df_history["date_table"] = df_history["date"].dt.strftime("%Y-%m-%d")
         df_display = df_history.drop(columns=["date"]).copy()
         df_display.set_index("date_table", inplace=True)
         st.dataframe(df_display)
 
-        # --- Download Button for history.json ---
         st.download_button(
             label="Download history.json",
             data=json.dumps(history, indent=4),
@@ -564,7 +597,6 @@ with st.expander("Manage History"):
             col_text, col_button = st.columns([9, 1])
             col_text.write(f"{snapshot['date']}: €{snapshot['total_value_eur']:.2f}")
 
-            # this button click is the *only* place we call experimental_rerun()
             if col_button.button("❌", key=f"del_snapshot_{idx}"):
                 # 1) Remove locally and save
                 del history[idx]
@@ -609,3 +641,11 @@ with st.expander("Manage History"):
                         import traceback
                         st.error(f"❌ Failed to push deletion to GitHub: {e}")
                         st.text(traceback.format_exc())
+
+                # 4) Rerun so UI updates (guarded)
+                try:
+                    st.experimental_rerun()
+                except AttributeError:
+                    pass
+    else:
+        st.info("No snapshots available.")
